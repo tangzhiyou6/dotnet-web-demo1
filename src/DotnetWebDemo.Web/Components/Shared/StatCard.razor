@@ -1,0 +1,21 @@
+@* 统计卡片，可复用。 *@
+<div class="stat-card">
+    <div class="stat-card__icon @IconClass">
+        <i class="bi @IconClass"></i>
+    </div>
+    <div class="stat-card__body">
+        <div class="stat-card__value">@Value</div>
+        <div class="stat-card__label">@Label</div>
+    </div>
+    @if (!string.IsNullOrEmpty(Hint))
+    {
+        <div class="stat-card__hint">@Hint</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Value { get; set; } = string.Empty;
+    [Parameter] public string IconClass { get; set; } = "bi bi-people";
+    [Parameter] public string? Hint { get; set; }
+}

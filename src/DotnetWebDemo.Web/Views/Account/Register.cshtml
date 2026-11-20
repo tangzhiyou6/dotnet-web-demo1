@@ -1,0 +1,66 @@
+@model RegisterViewModel
+@{
+    ViewData["Title"] = "注册";
+}
+
+<div class="card shadow-sm border-0 mx-auto" style="max-width: 460px;">
+    <div class="card-body p-4">
+        <h1 class="h4 mb-1">注册新账号</h1>
+        <p class="text-secondary small mb-4">注册成功后将自动以「User」角色登录。</p>
+
+        <form asp-controller="Account" asp-action="Register" method="post">
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2"></div>
+
+            <div class="mb-3">
+                <label asp-for="UserName" class="form-label"></label>
+                <input asp-for="UserName" class="form-control" autocomplete="username" autofocus />
+                <span asp-validation-for="UserName" class="text-danger small"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Email" class="form-label"></label>
+                <input asp-for="Email" class="form-control" autocomplete="email" />
+                <span asp-validation-for="Email" class="text-danger small"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="FullName" class="form-label"></label>
+                <input asp-for="FullName" class="form-control" />
+                <span asp-validation-for="FullName" class="text-danger small"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Department" class="form-label"></label>
+                <input asp-for="Department" class="form-control" />
+                <span asp-validation-for="Department" class="text-danger small"></span>
+            </div>
+
+            @* 密码输入框由 Blazor 组件渲染，附带实时强度提示 *@
+            <component type="typeof(DotnetWebDemo.Web.Components.Account.PasswordStrength)"
+                       render-mode="ServerPrerendered"
+                       Name="Password"
+                       Label="密码"
+                       Placeholder="至少 8 位，含大小写字母与数字"
+                       Autocomplete="new-password" />
+
+            <div class="mb-3">
+                <label asp-for="ConfirmPassword" class="form-label"></label>
+                <input asp-for="ConfirmPassword" class="form-control" autocomplete="new-password" />
+                <span asp-validation-for="ConfirmPassword" class="text-danger small"></span>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100">注册</button>
+        </form>
+
+        <hr class="my-4" />
+
+        <p class="text-center text-secondary small mb-0">
+            已有账号？<a asp-controller="Account" asp-action="Login">直接登录</a>
+        </p>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="_framework/blazor.web.js"></script>
+}

@@ -1,0 +1,21 @@
+@{
+    ViewData["Title"] = "用户管理";
+    var currentUserId = User.Identity?.IsAuthenticated == true
+        ? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+        : null;
+}
+
+<div class="mb-4">
+    <h1 class="h3 mb-2">用户管理</h1>
+    <p class="text-secondary mb-0">
+        下方表格为 Blazor Server 交互式组件：搜索、过滤、分页与启用/停用均通过 SignalR 实时回写数据库，无需整页刷新。
+    </p>
+</div>
+
+<component type="typeof(DotnetWebDemo.Web.Components.Users.UserTable)"
+           render-mode="ServerPrerendered"
+           CurrentUserId="@currentUserId" />
+
+@section Scripts {
+    <script src="_framework/blazor.web.js"></script>
+}

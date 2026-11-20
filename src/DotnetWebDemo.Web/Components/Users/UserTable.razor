@@ -1,0 +1,235 @@
+@* 用户列表：Blazor Server 交互式表格，支持搜索、过滤、分页与启用/停用。 *@
+@inject IUserService UserService
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white">
+        <div class="row g-2 align-items-end">
+            <div class="col-12 col-md-4">
+                <label class="form-label small mb-1" for="user-search">关键字</label>
+                <input id="user-search" type="search" class="form-control form-control-sm"
+                       placeholder="用户名 / 邮箱 / 姓名"
+                       @bind="_keyword" @bind:event="oninput" @bind:after="FilterChangedAsync" />
+            </div>
+            <div class="col-6 col-md-3">
+                <label class="form-label small mb-1" for="user-role">角色</label>
+                <select id="user-role" class="form-select form-select-sm"
+                        @bind="_role" @bind:after="FilterChangedAsync">
+                    <option value="">全部角色</option>
+                    @foreach (var role in _roles)
+                    {
+                        <option value="@role">@role</option>
+                    }
+                </select>
+            </div>
+            <div class="col-6 col-md-3">
+                <label class="form-label small mb-1" for="user-state">状态</label>
+                <select id="user-state" class="form-select form-select-sm"
+                        @bind="_state" @bind:after="FilterChangedAsync">
+                    <option value="">全部状态</option>
+                    <option value="enabled">已启用</option>
+                    <option value="disabled">已停用</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-2 d-flex gap-2">
+                <button class="btn btn-sm btn-outline-secondary flex-fill" @onclick="ResetAsync">重置</button>
+                <button class="btn btn-sm btn-primary flex-fill" @onclick="ReloadAsync" disabled="@_loading">
+                    @(_loading ? "查询中…" : "查询")
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card-body">
+        @if (!string.IsNullOrEmpty(_message))
+        {
+            <div class="alert @_messageCss py-2">@_message</div>
+        }
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-3">
+                <thead class="table-light">
+                    <tr>
+                        <th scope="col">用户名</th>
+                        <th scope="col">姓名</th>
+                        <th scope="col">部门</th>
+                        <th scope="col">邮箱</th>
+                        <th scope="col">角色</th>
+                        <th scope="col">状态</th>
+                        <th scope="col">创建时间</th>
+                        <th scope="col" class="text-end">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (_result is null || _result.Items.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="8" class="text-center text-secondary py-4">没有匹配的用户。</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var user in _result.Items)
+                        {
+                            <tr>
+                                <td class="fw-semibold">@user.UserName</td>
+                                <td>@(string.IsNullOrWhiteSpace(user.FullName) ? "-" : user.FullName)</td>
+                                <td>@(string.IsNullOrWhiteSpace(user.Department) ? "-" : user.Department)</td>
+                                <td class="text-truncate" style="max-width: 220px;">@user.Email</td>
+                                <td>
+                                    @foreach (var role in user.Roles)
+                                    {
+                                        <span class="badge text-bg-secondary me-1">@role</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (user.IsEnabled)
+                                    {
+                                        <span class="badge text-bg-success">已启用</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge text-bg-danger">已停用</span>
+                                    }
+                                </td>
+                                <td class="text-nowrap">@user.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")</td>
+                                <td class="text-end">
+                                    @if (string.Equals(user.Id, CurrentUserId, StringComparison.Ordinal))
+                                    {
+                                        <span class="badge text-bg-info">当前账号</span>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-sm @(user.IsEnabled ? "btn-outline-danger" : "btn-outline-success")"
+                                                disabled="@_busy"
+                                                @onclick="() => ToggleAsync(user)">
+                                            @(user.IsEnabled ? "停用" : "启用")
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (_result is not null && _result.TotalCount > 0)
+        {
+            <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
+                <span class="text-secondary small">
+                    共 @_result.TotalCount 条，第 @_result.Page / @_result.TotalPages 页
+                </span>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary" disabled="@(!_result.HasPrevious)" @onclick="() => GoToPageAsync(_result.Page - 1)">
+                        上一页
+                    </button>
+                    <button class="btn btn-outline-secondary" disabled="@(!_result.HasNext)" @onclick="() => GoToPageAsync(_result.Page + 1)">
+                        下一页
+                    </button>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private const int PageSize = 8;
+
+    private string _keyword = string.Empty;
+    private string _role = string.Empty;
+    private string _state = string.Empty;
+
+    private int _page = 1;
+    private bool _loading;
+    private bool _busy;
+    private string? _message;
+    private string _messageCss = "alert-info";
+    private PagedResult<UserListItem>? _result;
+    private IReadOnlyList<string> _roles = [];
+
+    /// <summary>当前登录用户 ID，由 MVC 视图注入（用于禁止自我停用）。</summary>
+    [Parameter] public string? CurrentUserId { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _roles = await UserService.GetRolesAsync();
+        await LoadAsync();
+    }
+
+    private async Task FilterChangedAsync()
+    {
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task ResetAsync()
+    {
+        _keyword = string.Empty;
+        _role = string.Empty;
+        _state = string.Empty;
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private Task ReloadAsync()
+    {
+        return LoadAsync();
+    }
+
+    private async Task GoToPageAsync(int page)
+    {
+        _page = page < 1 ? 1 : page;
+        await LoadAsync();
+    }
+
+    private async Task ToggleAsync(UserListItem user)
+    {
+        _busy = true;
+        _message = null;
+        try
+        {
+            var (success, message) = await UserService.SetUserEnabledAsync(
+                user.Id, !user.IsEnabled, CurrentUserId ?? string.Empty);
+
+            _message = message;
+            _messageCss = success ? "alert-success" : "alert-warning";
+        }
+        catch (Exception ex)
+        {
+            _message = $"操作失败: {ex.Message}";
+            _messageCss = "alert-danger";
+        }
+        finally
+        {
+            _busy = false;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            bool? enabled = _state switch
+            {
+                "enabled" => true,
+                "disabled" => false,
+                _ => null
+            };
+
+            _result = await UserService.SearchUsersAsync(
+                _keyword, string.IsNullOrWhiteSpace(_role) ? null : _role, enabled, _page, PageSize);
+        }
+        catch (Exception ex)
+        {
+            _message = $"查询失败: {ex.Message}";
+            _messageCss = "alert-danger";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

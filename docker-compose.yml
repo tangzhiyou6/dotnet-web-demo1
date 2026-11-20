@@ -1,0 +1,70 @@
+# =====================================================================
+#  ASP.NET Core MVC + Blazor Server + SQL Server 2025
+#  目标平台：linux/amd64
+#  使用：docker compose up -d --build
+# =====================================================================
+name: dotnet-web-demo1
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2025-latest
+    container_name: demo1-sqlserver
+    platform: linux/amd64
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "Developer"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:-YourStrong@Password123}"
+      TZ: "${TZ:-Asia/Shanghai}"
+    ports:
+      - "${MSSQL_HOST_PORT:-1433}:1433"
+    volumes:
+      - mssql-data:/var/opt/mssql
+    healthcheck:
+      # SQL Server 需要约 30~60 秒完成初始化，健康检查决定 web 服务何时启动
+      test:
+        - "CMD-SHELL"
+        - "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' > /dev/null 2>&1 || exit 1"
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - demo1-net
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      platforms:
+        - linux/amd64
+    image: dotnet-web-demo1:latest
+    container_name: demo1-web
+    platform: linux/amd64
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      TZ: "${TZ:-Asia/Shanghai}"
+      # 应用启动时自动执行 EF Core 迁移并写入种子数据
+      Database__AutoMigrate: "true"
+      ConnectionStrings__DefaultConnection: >-
+        Server=sqlserver,1433;Database=DotnetWebDemoDb;User Id=sa;Password=${MSSQL_SA_PASSWORD:-YourStrong@Password123};TrustServerCertificate=True;Encrypt=False;MultipleActiveResultSets=True;Connect Timeout=60
+    ports:
+      - "${WEB_HOST_PORT:-8080}:8080"
+    volumes:
+      # 持久化 DataProtection 密钥，容器重启后登录态不失效
+      - dataprotection-keys:/home/app/.aspnet/DataProtection-Keys
+    restart: unless-stopped
+    networks:
+      - demo1-net
+
+networks:
+  demo1-net:
+    driver: bridge
+
+volumes:
+  mssql-data:
+  dataprotection-keys:

@@ -1,0 +1,15 @@
+# 镜像构建时忽略的内容
+**/bin/
+**/obj/
+**/.vs/
+**/.vscode/
+**/.idea/
+**/node_modules/
+**/*.user
+**/*.suo
+.git/
+.gitignore
+.env
+.env.*
+README.md
+docs/

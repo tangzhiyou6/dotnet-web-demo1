@@ -1,0 +1,18 @@
+﻿@model ErrorViewModel
+@{
+    ViewData["Title"] = "出错了";
+}
+
+<div class="text-center py-5">
+    <h1 class="text-danger">出错了</h1>
+    <p class="text-secondary">处理请求时发生了未预期的错误。</p>
+
+    @if (Model.ShowRequestId)
+    {
+        <p>
+            <strong>Request ID:</strong> <code>@Model.RequestId</code>
+        </p>
+    }
+
+    <a class="btn btn-primary" asp-controller="Home" asp-action="Index">返回首页</a>
+</div>

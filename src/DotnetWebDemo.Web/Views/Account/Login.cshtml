@@ -1,0 +1,47 @@
+@model LoginViewModel
+@{
+    ViewData["Title"] = "登录";
+}
+
+<div class="card shadow-sm border-0 mx-auto" style="max-width: 460px;">
+    <div class="card-body p-4">
+        <h1 class="h4 mb-1">账号登录</h1>
+        <p class="text-secondary small mb-4">请使用系统账号登录后访问用户管理页面。</p>
+
+        <form asp-controller="Account" asp-action="Login" asp-route-returnUrl="@Model.ReturnUrl" method="post">
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2"></div>
+
+            <div class="mb-3">
+                <label asp-for="UserName" class="form-label"></label>
+                <input asp-for="UserName" class="form-control" autocomplete="username" autofocus />
+                <span asp-validation-for="UserName" class="text-danger small"></span>
+            </div>
+
+            @* 密码输入框由 Blazor 组件渲染，保留 name="Password" 以便 MVC 表单回传 *@
+            <component type="typeof(DotnetWebDemo.Web.Components.Account.PasswordStrength)"
+                       render-mode="ServerPrerendered"
+                       Name="Password"
+                       Label="密码"
+                       Placeholder="请输入密码"
+                       Autocomplete="current-password" />
+
+            <div class="form-check mb-3">
+                <input asp-for="RememberMe" class="form-check-input" type="checkbox" />
+                <label asp-for="RememberMe" class="form-check-label"></label>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100">登录</button>
+        </form>
+
+        <hr class="my-4" />
+
+        <p class="text-center text-secondary small mb-0">
+            还没有账号？<a asp-controller="Account" asp-action="Register">立即注册</a>
+        </p>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="_framework/blazor.web.js"></script>
+}

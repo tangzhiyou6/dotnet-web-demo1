@@ -1,0 +1,147 @@
+@* 首页仪表盘：Blazor Server 组件，通过 SignalR 实时推送统计刷新。 *@
+@implements IAsyncDisposable
+@inject IUserService UserService
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+        <StatCard Label="用户总数" Value="@Text(_stats?.TotalUsers)" IconClass="bi bi-people-fill" />
+    </div>
+    <div class="col-6 col-lg-3">
+        <StatCard Label="启用账号" Value="@Text(_stats?.EnabledUsers)" IconClass="bi bi-person-check-fill" />
+    </div>
+    <div class="col-6 col-lg-3">
+        <StatCard Label="停用账号" Value="@Text(_stats?.DisabledUsers)" IconClass="bi bi-person-x-fill" />
+    </div>
+    <div class="col-6 col-lg-3">
+        <StatCard Label="今日注册" Value="@Text(_stats?.NewUsersToday)" IconClass="bi bi-person-plus-fill" />
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header d-flex flex-wrap gap-2 align-items-center justify-content-between">
+        <div>
+            <strong>实时统计</strong>
+            <span class="text-secondary small ms-2">数据由 Blazor Server 组件经 SignalR 推送，无需整页刷新</span>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+            <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" id="autoRefresh"
+                       checked="@_autoRefresh" @onchange="OnAutoRefreshChanged" />
+                <label class="form-check-label small" for="autoRefresh">
+                    自动刷新(每 @RefreshIntervalSeconds 秒)
+                </label>
+            </div>
+            <button class="btn btn-sm btn-primary" @onclick="RefreshAsync" disabled="@_loading">
+                @(_loading ? "刷新中…" : "立即刷新")
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <dl class="row mb-0">
+            <dt class="col-sm-3">角色数量</dt>
+            <dd class="col-sm-9">@Text(_stats?.TotalRoles)</dd>
+
+            <dt class="col-sm-3">最后更新时间</dt>
+            <dd class="col-sm-9">@(_stats is null ? "-" : _stats.GeneratedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"))}</dd>
+
+            <dt class="col-sm-3">数据库</dt>
+            <dd class="col-sm-9">SQL Server @(_stats is null ? "" : "(EF Core 11)")</dd>
+        </dl>
+    </div>
+</div>
+
+@code {
+    private DashboardStats? _stats;
+    private bool _loading;
+    private bool _autoRefresh = true;
+    private CancellationTokenSource? _cts;
+
+    [Parameter] public int RefreshIntervalSeconds { get; set; } = 10;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        StartRefreshLoop();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _stats = await UserService.GetDashboardStatsAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"加载统计失败: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private Task RefreshAsync()
+    {
+        return LoadAsync();
+    }
+
+    private void OnAutoRefreshChanged(ChangeEventArgs args)
+    {
+        _autoRefresh = args.Value is bool value && value;
+    }
+
+    private void StartRefreshLoop()
+    {
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
+        var token = _cts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(RefreshIntervalSeconds), token);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+
+                if (!_autoRefresh)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    await InvokeAsync(async () =>
+                    {
+                        await LoadAsync();
+                        StateHasChanged();
+                    });
+                }
+                catch (ObjectDisposedException)
+                {
+                    // 组件已被释放，结束循环
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"自动刷新失败: {ex.Message}");
+                }
+            }
+        });
+    }
+
+    private static string Text(int? value) => value?.ToString() ?? "-";
+
+    public ValueTask DisposeAsync()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

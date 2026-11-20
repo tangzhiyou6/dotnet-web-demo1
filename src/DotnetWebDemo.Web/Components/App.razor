@@ -1,0 +1,12 @@
+@* 根组件：用于 MapRazorComponents 注册组件路由与 Blazor Server 交互式渲染模式。 *@
+<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(App).Assembly">
+        <Found Context="routeData">
+            <RouteView RouteData="@routeData" />
+            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        </Found>
+        <NotFound>
+            <div class="alert alert-warning m-3">页面不存在。</div>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>
